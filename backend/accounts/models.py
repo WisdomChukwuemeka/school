@@ -3,18 +3,19 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 import os
 import uuid
 # Create your models here.
+ 
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, role='student', **extra_fields):
+    def create_user(self, email, password=None, role='null', code='null', **extra_fields):
         if not email:
             raise ValueError('Email must be set')
         if role == 'manager':
             extra_fields.setdefault('is_staff', True)
-            extra_fields.setdefault('is_superuser', True)
+            extra_fields.setdefault('is_manager', True)
         elif role == 'staff':
             extra_fields.setdefault('is_staff', True)
             extra_fields.setdefault('is_superuser', False)
-        else:
+        elif role == 'visitor':
             extra_fields.setdefault('is_staff', False)
             extra_fields.setdefault('is_superuser', False)
             
@@ -28,15 +29,19 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_active', True)
         extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_manager', True)
         
         if extra_fields.get('is_staff') is not True:
             raise ValueError("is_superuser must be set to is_staff=True")
         if extra_fields.get('is_superuser') is not True:
             raise ValueError("is_superuser must be set to is_superuser=True")
+        if extra_fields.get('is_manager') is not True:
+            raise ValueError("is_superuser must be set to is_manager=True")
         return self.create_user(email, password, **extra_fields)
     
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
+        ('visitor', 'Visitor'),
         ('manager', 'Manager'),
         ('student', 'Student'),
         ('staff', 'Staff'),
@@ -46,7 +51,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=30, blank=False, null=False)
     username = models.CharField(max_length=20, blank=False, null=False)
     phone_number = models.CharField(max_length=20)
+    code = models.CharField(max_length=20, blank=True, null=True, unique=True)
     is_staff = models.BooleanField(default=False)
+    is_manager = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_superuser = models.BooleanField(default=False)
     agreement = models.BooleanField(default=False)
@@ -60,11 +67,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def __str__(self):
         return self.email
+    
+    
+
+class AccessCode(models.Model):
+    code = models.CharField(max_length=20, unique=True)
+    role = models.CharField(max_length=20, choices=User.ROLE_CHOICES)
+    is_used = models.BooleanField(default=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.code} - {self.role}"
      
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    avatar = models.ImageField(upload_to='images/avatar/', blank=True, null=True)
-    bio = models.TextField(blank=True, max_length=1000)
+    avatar = models.ImageField(upload_to='pictures/avatar/', blank=True, null=True)
     
     
     
